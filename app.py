@@ -1,7 +1,7 @@
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
+from streamlit_cookies_manager import EncryptedCookieManager
 
-# 1. Configuração da página principal
 st.set_page_config(
     page_title="SABIÁ - Portal do Aluno",
     page_icon="🐦",
@@ -9,15 +9,26 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# 2. Inicializa a conexão com o Supabase
+# ==========================================
+# GERENCIADOR DE COOKIES (VERSÃO v2)
+# ==========================================
+# Em produção, mova essa senha para st.secrets["COOKIES_PASSWORD"].
+COOKIES_PASSWORD = "sabia_tutores_secret_key_2026_muito_longa_e_segura"
+cookies = EncryptedCookieManager(
+    prefix="sabia/",
+    password=COOKIES_PASSWORD,
+)
+
+# Aguarda o componente de cookies carregar antes de prosseguir.
+if not cookies.ready():
+    st.stop()
+
 try:
     conn = st.connection("supabase", type=SupabaseConnection)
 except Exception as e:
     st.error(f"Erro crítico ao conectar ao banco de dados: {e}")
     st.stop()
 
-# 3. Define o tema base do Portal (Neutro)
-# O Portal usa um tema neutro; as cores específicas são aplicadas por cada view (Pati/Max)
 if "dark_mode" not in st.session_state:
     st.session_state.dark_mode = True
 
@@ -29,92 +40,113 @@ accent = "#7a5a9a" if st.session_state.dark_mode else "#5a3a7a"
 
 st.markdown(f"""
 <style>
-    /* Tema neutro do Portal */
     .stApp {{ background-color: {bg} !important; color: {txt} !important; }}
     [data-testid="stSidebar"] {{ background-color: {card} !important; border-right: 1px solid {border} !important; }}
     [data-testid="stSidebar"] * {{ color: {txt} !important; }}
     .stApp p, .stApp span, .stApp div, .stApp h1, .stApp h2, .stApp h3, .stApp label {{ color: {txt} !important; }}
-    
-    /* Estilo do Formulário de Login */
-    [data-testid="stForm"] {{
-        background-color: {card} !important;
-        border: 1px solid {border} !important;
-        border-radius: 12px;
-        padding: 30px;
-        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
-    }}
-    .stButton > button {{
-        background-color: {accent} !important;
-        color: #ffffff !important;
-        border: none !important;
-        font-weight: 600 !important;
-        border-radius: 8px !important;
-    }}
-    
-    /* Ajuste do menu de navegação lateral (st.navigation) */
+    [data-testid="stForm"] {{ background-color: {card} !important; border: 1px solid {border} !important; border-radius: 12px; padding: 30px; box-shadow: 0 8px 24px rgba(0,0,0,0.2); }}
+    .stButton > button {{ background-color: {accent} !important; color: #ffffff !important; border: none !important; font-weight: 600 !important; border-radius: 8px !important; }}
     [data-testid="stSidebarNav"] {{ padding-top: 20px; }}
     [data-testid="stSidebarNav"] span {{ font-size: 16px !important; font-weight: 600 !important; }}
 </style>
 """, unsafe_allow_html=True)
 
-# 4. Lógica de Autenticação
+# ==========================================
+# RECUPERAÇÃO DE SESSÃO VIA COOKIES
+# ==========================================
 if "user" not in st.session_state:
-    # Centraliza o formulário de login
+    access_token = cookies.get("sb_access_token")
+    refresh_token = cookies.get("sb_refresh_token")
+
+    if access_token and refresh_token:
+        try:
+            session = conn.session_client().auth.set_session(access_token, refresh_token)
+            if session and session.user:
+                st.session_state["user"] = session.user
+                st.rerun()
+        except Exception:
+            # Tokens inválidos ou expirados: limpa os cookies
+            cookies["sb_access_token"] = ""
+            cookies["sb_refresh_token"] = ""
+            cookies.save()
+
+# ==========================================
+# TELA DE LOGIN
+# ==========================================
+if "user" not in st.session_state:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         st.title("🐦 SABIÁ")
         st.markdown("Bem-vindo ao seu ambiente de estudos personalizado.")
         st.divider()
-        
+
         with st.form("auth_form"):
             st.markdown("### Acesse sua conta")
             email = st.text_input("Email")
             password = st.text_input("Senha", type="password")
-            
+
             col_btn1, col_btn2 = st.columns(2)
             with col_btn1:
                 btn_login = st.form_submit_button("Entrar", use_container_width=True)
             with col_btn2:
                 btn_signup = st.form_submit_button("Criar Conta", use_container_width=True)
-                
+
             if btn_login:
                 try:
                     res = conn.session_client().auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state["user"] = res.user
+
+                    # Salva os tokens nos cookies (criptografados)
+                    cookies["sb_access_token"] = res.session.access_token
+                    cookies["sb_refresh_token"] = res.session.refresh_token
+                    cookies.save()
+
                     st.rerun()
                 except Exception as e:
                     st.error(f"Falha no login: {e}")
-                    
+
             if btn_signup:
                 try:
                     conn.session_client().auth.sign_up({"email": email, "password": password})
                     st.success("Conta criada! Clique em Entrar para acessar.")
                 except Exception as e:
                     st.error(f"Falha ao criar conta: {e}")
-                    
+
     st.stop()
 
-# 5. Define o ID global do aluno
+# ==========================================
+# APÓS O LOGIN
+# ==========================================
 st.session_state.session_id = st.session_state["user"].id
 
-# 6. Sidebar Global (Logout)
 with st.sidebar:
     st.markdown(f"👤 **{st.session_state['user'].email}**")
     st.caption(f"ID: {st.session_state.session_id[:8]}...")
-    
+
     if st.button("Sair (Logout)", use_container_width=True):
-        conn.session_client().auth.sign_out()
+        try:
+            conn.session_client().auth.sign_out()
+        except Exception:
+            pass
+
+        # Limpa os cookies e as flags de histórico
+        cookies["sb_access_token"] = ""
+        cookies["sb_refresh_token"] = ""
+        cookies.save()
+
+        for key in ["mat_loaded_for_user", "fis_loaded_for_user"]:
+            if key in st.session_state:
+                del st.session_state[key]
+
         del st.session_state["user"]
         st.rerun()
-        
+
     st.divider()
 
-# 7. Configuração da Navegação Multipáginas
 pg = st.navigation([
     st.Page("views/home.py", title="Início", icon="🏠", default=True),
     st.Page("views/matematica.py", title="Matemática", icon="📐"),
     st.Page("views/fisica.py", title="Física", icon="⚛️")
 ])
 
-# Executa a página selecionada
 pg.run()

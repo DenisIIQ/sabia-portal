@@ -1,6 +1,4 @@
-# (versão 2.6 – Prof.ª Pati / Portal SABIÁ)
-# Correção: Restauração completa das funções de conversão HTML/Markdown.
-
+# (versão 2.9 – Prof.ª Pati / Portal SABIÁ)
 import streamlit as st
 import requests
 import json
@@ -8,22 +6,20 @@ import re
 import time
 import html as html_lib
 from datetime import datetime
+from st_supabase_connection import SupabaseConnection
 
 def _get_secret(chave: str, padrao: str = "") -> str:
     try: return st.secrets[chave]
     except Exception: return padrao
 
 WEBHOOK_URL = _get_secret("WEBHOOK_URL", "http://167.126.1.122.nip.io:5678/webhook/prof-pati-mat")
-HISTORY_URL = _get_secret("HISTORY_URL", "http://167.126.1.122.nip.io:5678/webhook/prof-pati-history")
-CLEAR_URL   = _get_secret("CLEAR_URL",   "http://167.126.1.122.nip.io:5678/webhook/prof-pati-clear")
-
-session_id_mat = f"{st.session_state.session_id}_mat"
+db_aluno_id = st.session_state.session_id
+n8n_session_id = f"{db_aluno_id}_mat"
 
 defaults = {
     "mat_messages": [], "mat_error_log": [], "mat_progress_log": [],
     "mat_last_response_html": "", "mat_formato_num": "1",
-    "mat_last_simulacoes": [], "mat_history_loaded": False,
-    "mat_confirmar_reset": False,
+    "mat_last_simulacoes": [], "mat_confirmar_reset": False,
 }
 for k, v in defaults.items():
     if k not in st.session_state: st.session_state[k] = v
@@ -35,15 +31,20 @@ global_defaults = {
 for k, v in global_defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
-if not st.session_state.mat_history_loaded:
-    st.session_state.mat_history_loaded = True
+# CARREGAR HISTÓRICO DO SUPABASE (COM SESSION CLIENT)
+if st.session_state.get("mat_loaded_for_user") != db_aluno_id:
+    st.session_state["mat_loaded_for_user"] = db_aluno_id
+    st.session_state.mat_messages = []
     try:
-        r = requests.post(HISTORY_URL, json={"sessionId": session_id_mat}, timeout=(5, 15), headers={"Content-Type": "application/json"})
-        if r.status_code == 200:
-            data = r.json()
-            msgs = data.get("messages") or []
-            if isinstance(msgs, list) and msgs: st.session_state.mat_messages = msgs
-    except Exception: pass
+        conn = st.connection("supabase", type=SupabaseConnection)
+        res = conn.session_client().table("interacoes").select("pergunta, resposta").eq("aluno_id", db_aluno_id).eq("disciplina", "matematica").order("timestamp", desc=False).limit(30).execute()
+        if res.data:
+            for row in res.data:
+                st.session_state.mat_messages.append({"role": "user", "content": row["pergunta"]})
+                if row.get("resposta"):
+                    st.session_state.mat_messages.append({"role": "assistant", "content": row["resposta"]})
+    except Exception as e:
+        st.error(f"Erro ao carregar histórico: {e}")
 
 def _detectar_tema(pergunta: str) -> str:
     p = (pergunta or "").lower()
@@ -104,9 +105,6 @@ st.markdown(f"""
 
 st.title("📐 Prof.ª Pati")
 st.caption("Matemática para o ENEM")
-
-def log_progress(msg): st.session_state.mat_progress_log.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
-def log_error(msg): st.session_state.mat_error_log.append(f"[{datetime.now().strftime('%H:%M:%S')}] {msg}")
 
 _SUP = {'0':'⁰','1':'¹','2':'²','3':'³','4':'⁴','5':'⁵','6':'⁶','7':'⁷','8':'⁸','9':'⁹','-':'⁻','+':'⁺','n':'ⁿ','i':'ⁱ'}
 _SUB = {'0':'₀','1':'₁','2':'₂','3':'₃','4':'₄','5':'₅','6':'₆','7':'₇','8':'₈','9':'₉','-':'₋','+':'₊','a':'ₐ','e':'ₑ','o':'ₒ','x':'ₓ','i':'ᵢ','j':'ⱼ','n':'ₙ'}
@@ -247,7 +245,9 @@ def renderizar_simulacoes_painel(simulacoes):
         st.markdown(f'<div class="sim-card"><div class="sim-titulo">{idx}. {s.get("titulo", "")}</div><div class="sim-desc">{s.get("descricao", "")}</div><div class="sim-link" style="font-size:11px;"><a href="{s.get("link", "#")}" target="_blank" style="color:{ACCENT};">🔗 Acessar</a></div></div>', unsafe_allow_html=True)
 
 def _executar_reset():
-    try: requests.post(CLEAR_URL, json={"sessionId": session_id_mat}, timeout=(5, 15), headers={"Content-Type": "application/json"})
+    try:
+        conn = st.connection("supabase", type=SupabaseConnection)
+        conn.session_client().table("interacoes").delete().eq("aluno_id", db_aluno_id).eq("disciplina", "matematica").execute()
     except Exception: pass
     st.session_state.mat_messages = []; st.session_state.mat_error_log = []; st.session_state.mat_progress_log = []
     st.session_state.mat_last_response_html = ""; st.session_state.mat_last_simulacoes = []; st.session_state.mat_confirmar_reset = False
@@ -315,18 +315,35 @@ if prompt and prompt.strip():
     with st.chat_message("user"): st.markdown(pergunta)
 
     with st.chat_message("assistant"):
+        tema_detectado = _detectar_tema(pergunta)
         placeholder = st.empty()
         placeholder.markdown(f'<div style="color:{TXT2};"><i>Prof.ª Pati está analisando…</i></div>', unsafe_allow_html=True)
         try:
-            payload = {"message": pergunta, "formato": st.session_state.mat_formato_num, "sessionId": session_id_mat}
+            payload = {"message": pergunta, "formato": st.session_state.mat_formato_num, "sessionId": n8n_session_id}
             response = requests.post(WEBHOOK_URL, json=payload, timeout=(10, 120), headers={"Content-Type": "application/json"})
             placeholder.empty()
+            
             if response.status_code == 200:
                 data = response.json()
                 resposta = data.get("formattedResponse") or data.get("message") or "Desculpe."
                 st.session_state.mat_last_response_html = resposta
                 st.markdown(html_to_markdown(resposta))
                 st.session_state.mat_messages.append({"role": "assistant", "content": resposta})
+                
+                # SALVAR NO SUPABASE (COM SESSION CLIENT)
+                try:
+                    conn = st.connection("supabase", type=SupabaseConnection)
+                    conn.session_client().table("interacoes").insert({
+                        "aluno_id": db_aluno_id,
+                        "disciplina": "matematica",
+                        "topico": tema_detectado,
+                        "mdr": int(st.session_state.mat_formato_num),
+                        "pergunta": pergunta,
+                        "resposta": resposta
+                    }).execute()
+                except Exception as e:
+                    st.error(f"Erro ao salvar no banco: {e}")
+                
                 simulacoes = data.get("simulacoes")
                 if simulacoes:
                     if isinstance(simulacoes, str):
