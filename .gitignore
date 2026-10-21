@@ -1,0 +1,10 @@
+.env
+.streamlit/secrets.toml
+*.key
+*.pem
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.DS_Store
+Thumbs.db
