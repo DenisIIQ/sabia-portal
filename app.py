@@ -1,3 +1,5 @@
+
+# Versão 1.5 - Finalizada com persistência de histórico e cookies
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
 from streamlit_cookies_manager import EncryptedCookieManager
