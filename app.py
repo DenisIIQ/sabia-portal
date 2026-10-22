@@ -1,5 +1,4 @@
-
-# Versão 1.5 - Finalizada com persistência de histórico e cookies
+# Versão 1.7 - Portal SABIÁ com Química integrada
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -11,17 +10,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# ==========================================
-# GERENCIADOR DE COOKIES (VERSÃO v2)
-# ==========================================
-# Em produção, mova essa senha para st.secrets["COOKIES_PASSWORD"].
 COOKIES_PASSWORD = "sabia_tutores_secret_key_2026_muito_longa_e_segura"
-cookies = EncryptedCookieManager(
-    prefix="sabia/",
-    password=COOKIES_PASSWORD,
-)
+cookies = EncryptedCookieManager(prefix="sabia/", password=COOKIES_PASSWORD)
 
-# Aguarda o componente de cookies carregar antes de prosseguir.
 if not cookies.ready():
     st.stop()
 
@@ -53,9 +44,7 @@ st.markdown(f"""
 </style>
 """, unsafe_allow_html=True)
 
-# ==========================================
-# RECUPERAÇÃO DE SESSÃO VIA COOKIES
-# ==========================================
+# RECUPERAÇÃO DE SESSÃO
 if "user" not in st.session_state:
     access_token = cookies.get("sb_access_token")
     refresh_token = cookies.get("sb_refresh_token")
@@ -67,14 +56,11 @@ if "user" not in st.session_state:
                 st.session_state["user"] = session.user
                 st.rerun()
         except Exception:
-            # Tokens inválidos ou expirados: limpa os cookies
             cookies["sb_access_token"] = ""
             cookies["sb_refresh_token"] = ""
             cookies.save()
 
-# ==========================================
 # TELA DE LOGIN
-# ==========================================
 if "user" not in st.session_state:
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -98,7 +84,6 @@ if "user" not in st.session_state:
                     res = conn.session_client().auth.sign_in_with_password({"email": email, "password": password})
                     st.session_state["user"] = res.user
 
-                    # Salva os tokens nos cookies (criptografados)
                     cookies["sb_access_token"] = res.session.access_token
                     cookies["sb_refresh_token"] = res.session.refresh_token
                     cookies.save()
@@ -116,9 +101,7 @@ if "user" not in st.session_state:
 
     st.stop()
 
-# ==========================================
 # APÓS O LOGIN
-# ==========================================
 st.session_state.session_id = st.session_state["user"].id
 
 with st.sidebar:
@@ -131,12 +114,11 @@ with st.sidebar:
         except Exception:
             pass
 
-        # Limpa os cookies e as flags de histórico
         cookies["sb_access_token"] = ""
         cookies["sb_refresh_token"] = ""
         cookies.save()
 
-        for key in ["mat_loaded_for_user", "fis_loaded_for_user"]:
+        for key in ["mat_loaded_for_user", "fis_loaded_for_user", "qui_loaded_for_user"]:
             if key in st.session_state:
                 del st.session_state[key]
 
@@ -145,10 +127,14 @@ with st.sidebar:
 
     st.divider()
 
+# ==========================================
+# MENU DE NAVEGAÇÃO (Adição da Química)
+# ==========================================
 pg = st.navigation([
     st.Page("views/home.py", title="Início", icon="🏠", default=True),
     st.Page("views/matematica.py", title="Matemática", icon="📐"),
-    st.Page("views/fisica.py", title="Física", icon="⚛️")
+    st.Page("views/fisica.py", title="Física", icon="⚛️"),
+    st.Page("views/quimica.py", title="Química", icon="🧪")
 ])
 
 pg.run()
