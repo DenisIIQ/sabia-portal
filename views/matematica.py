@@ -1,4 +1,6 @@
-# (versão 2.9 – Prof.ª Pati / Portal SABIÁ)
+# (versão 3.0 – Prof.ª Pati / Portal SABIÁ)
+# Novidade: Bloqueio da barra lateral durante o processamento da resposta.
+
 import streamlit as st
 import requests
 import json
@@ -31,7 +33,6 @@ global_defaults = {
 for k, v in global_defaults.items():
     if k not in st.session_state: st.session_state[k] = v
 
-# CARREGAR HISTÓRICO DO SUPABASE (COM SESSION CLIENT)
 if st.session_state.get("mat_loaded_for_user") != db_aluno_id:
     st.session_state["mat_loaded_for_user"] = db_aluno_id
     st.session_state.mat_messages = []
@@ -252,6 +253,20 @@ def _executar_reset():
     st.session_state.mat_messages = []; st.session_state.mat_error_log = []; st.session_state.mat_progress_log = []
     st.session_state.mat_last_response_html = ""; st.session_state.mat_last_simulacoes = []; st.session_state.mat_confirmar_reset = False
 
+# ==========================================
+# FUNÇÃO DE BLOQUEIO DA BARRA LATERAL
+# ==========================================
+def bloquear_barra_lateral(bloquear: bool):
+    if bloquear:
+        st.markdown("""
+        <style>
+            [data-testid="stSidebar"] {
+                pointer-events: none !important; /* Impede cliques */
+                opacity: 0.6 !important;         /* Deixa transparente */
+            }
+        </style>
+        """, unsafe_allow_html=True)
+
 with st.sidebar:
     st.markdown("### 🔬 Simulações")
     with st.container(height=200, border=True): renderizar_simulacoes_painel(st.session_state.mat_last_simulacoes)
@@ -314,6 +329,9 @@ if prompt and prompt.strip():
     st.session_state.mat_messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"): st.markdown(pergunta)
 
+    # 1. CONGELA A BARRA LATERAL
+    bloquear_barra_lateral(True)
+
     with st.chat_message("assistant"):
         tema_detectado = _detectar_tema(pergunta)
         placeholder = st.empty()
@@ -330,7 +348,6 @@ if prompt and prompt.strip():
                 st.markdown(html_to_markdown(resposta))
                 st.session_state.mat_messages.append({"role": "assistant", "content": resposta})
                 
-                # SALVAR NO SUPABASE (COM SESSION CLIENT)
                 try:
                     conn = st.connection("supabase", type=SupabaseConnection)
                     conn.session_client().table("interacoes").insert({
@@ -352,5 +369,10 @@ if prompt and prompt.strip():
                     st.session_state.mat_last_simulacoes = simulacoes if isinstance(simulacoes, list) else []
                 else: st.session_state.mat_last_simulacoes = []
             else: st.error(f"Erro HTTP {response.status_code}")
-        except Exception as e: placeholder.empty(); st.error(f"❌ {str(e)}")
+        except Exception as e: 
+            placeholder.empty(); 
+            st.error(f"❌ {str(e)}")
+
+    # 2. DESCONGELA A BARRA LATERAL ANTES DE RECARREGAR
+    bloquear_barra_lateral(False)
     st.rerun()
