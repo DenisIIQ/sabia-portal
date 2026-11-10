@@ -1,11 +1,9 @@
 import os
 from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
 from selenium.common.exceptions import TimeoutException
 
 APP_URLS = [
@@ -20,11 +18,9 @@ def wake_app(url):
     options.add_argument('--disable-gpu')
     options.add_argument('--window-size=1920,1080')
 
-    driver = webdriver.Chrome(
-        service=Service(ChromeDriverManager().install()),
-        options=options
-    )
     try:
+        # O Selenium 4.6+ gerencia o driver automaticamente
+        driver = webdriver.Chrome(options=options)
         driver.get(url)
         wait = WebDriverWait(driver, 30)
         try:
@@ -42,8 +38,11 @@ def wake_app(url):
             print(f"App acordado: {url}")
         except TimeoutException:
             print(f"App já acordado ou tempo de espera excedido: {url}")
+    except Exception as e:
+        print(f"Ocorreu um erro ao tentar acordar o app: {e}")
     finally:
-        driver.quit()
+        if 'driver' in locals():
+            driver.quit()
 
 if __name__ == "__main__":
     for app_url in APP_URLS:
