@@ -1,5 +1,5 @@
-# (versão 1.1 – Prof.ª Maria / Portal SABIÁ)
-# Novidade: Bloqueio da barra lateral durante o processamento da resposta.
+# (versão 1.2 – Prof.ª Maria / Portal SABIÁ)
+# Restauração: Descrições completas do MDR_INFO no expander da sidebar.
 
 import streamlit as st
 import requests
@@ -56,7 +56,18 @@ def _detectar_tema(pergunta: str) -> str:
     return "química"
 
 MDR_OPTIONS = {"📘 Teoria": "1", "✏️ Resolução": "2", "💡 Macetes": "3", "🎯 Simulado": "4", "📋 Resumão": "5", "🧭 Me Guie": "6"}
-MDR_INFO = {"1": {"nome": "Teoria", "icone": "📘", "descricao": "Explicação."}, "2": {"nome": "Resolução", "icone": "✏️", "descricao": "Passo a passo."}, "3": {"nome": "Macetes", "icone": "💡", "descricao": "Bizus."}, "4": {"nome": "Simulado", "icone": "🎯", "descricao": "Exercício."}, "5": {"nome": "Resumão", "icone": "📋", "descricao": "Fórmulas."}, "6": {"nome": "Me Guie", "icone": "🧭", "descricao": "Diagnóstico."}}
+
+# ==========================================
+# MDR_INFO RESTAURADO COM TEXTOS COMPLETOS
+# ==========================================
+MDR_INFO = {
+    "1": {"nome": "Teoria e Conceitos", "icone": "📘", "descricao": "Explicação aprofundada com analogias e exemplos do dia a dia."},
+    "2": {"nome": "Resolução de Questão", "icone": "✏️", "descricao": "Passo a passo detalhado, com cálculos e justificativas."},
+    "3": {"nome": "Macetes e Estratégias ENEM", "icone": "💡", "descricao": "Bizus, pegadinhas e atalhos para resolver questões rapidamente."},
+    "4": {"nome": "Mini-Simulado", "icone": "🎯", "descricao": "Geração de um exercício inédito sobre o tópico + resolução comentada."},
+    "5": {"nome": "Resumão", "icone": "📋", "descricao": "Fórmulas principais, gráficos importantes e os 3 erros mais comuns."},
+    "6": {"nome": "Me Guie", "icone": "🧭", "descricao": "Perguntas diagnósticas para descobrir o que você já sabe."},
+}
 
 PERFIS_DARK = {
     "Cobalto": {"BG": "#0b132b", "CARD": "#1c2541", "INPUT_BG": "#2a3a5a", "TXT": "#e0e6ed", "TXT2": "#8a9bb5", "BORDER": "#3a506b", "TABLE_HEADER_BG": "#1c2541", "SIM_CARD": "#142442", "SIM_BORDER": "#2a4a7a", "TOOLTIP_BG": "#1e3a5f", "TOOLTIP_BORDER": "#4a7ab5", "ACCENT": "#5bc0be", "ACCENT_DARK": "#3a8a88"},
@@ -254,16 +265,13 @@ def _executar_reset():
     st.session_state.qui_messages = []; st.session_state.qui_error_log = []; st.session_state.qui_progress_log = []
     st.session_state.qui_last_response_html = ""; st.session_state.qui_last_simulacoes = []; st.session_state.qui_confirmar_reset = False
 
-# ==========================================
-# FUNÇÃO DE BLOQUEIO DA BARRA LATERAL
-# ==========================================
 def bloquear_barra_lateral(bloquear: bool):
     if bloquear:
         st.markdown("""
         <style>
             [data-testid="stSidebar"] {
-                pointer-events: none !important; /* Impede cliques */
-                opacity: 0.6 !important;         /* Deixa transparente */
+                pointer-events: none !important;
+                opacity: 0.6 !important;
             }
         </style>
         """, unsafe_allow_html=True)
@@ -295,7 +303,12 @@ with st.sidebar:
     st.divider()
 
     with st.expander("❓ O que é MDR?"):
-        for k in ["1", "2", "3", "4", "5", "6"]: st.markdown(f"**{MDR_INFO[k]['icone']} {MDR_INFO[k]['nome']}**"); st.caption(MDR_INFO[k]['descricao'])
+        st.markdown("**MDR = Modalidade de Resposta**")
+        st.caption("Escolha o formato no seletor abaixo do chat.")
+        st.divider()
+        for k in ["1", "2", "3", "4", "5", "6"]: 
+            st.markdown(f"**{MDR_INFO[k]['icone']} {MDR_INFO[k]['nome']}**")
+            st.caption(MDR_INFO[k]['descricao'])
     st.divider()
     
     st.markdown("### 🗑️ Zona de perigo")
@@ -330,7 +343,6 @@ if prompt and prompt.strip():
     st.session_state.qui_messages.append({"role": "user", "content": pergunta})
     with st.chat_message("user"): st.markdown(pergunta)
 
-    # 1. CONGELA A BARRA LATERAL
     bloquear_barra_lateral(True)
 
     with st.chat_message("assistant"):
@@ -374,6 +386,5 @@ if prompt and prompt.strip():
             placeholder.empty(); 
             st.error(f"❌ {str(e)}")
 
-    # 2. DESCONGELA A BARRA LATERAL ANTES DE RECARREGAR
     bloquear_barra_lateral(False)
     st.rerun()
