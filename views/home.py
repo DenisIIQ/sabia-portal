@@ -10,16 +10,19 @@ st.divider()
 
 st.markdown("### 📚 Minhas Disciplinas")
 
-# Alterado para 3 colunas para acomodar a nova disciplina
-col1, col2, col3 = st.columns(3)
+# 4 colunas para as 4 disciplinas
+col1, col2, col3, col4 = st.columns(4)
 
 with col1:
     st.info("📐 **Matemática**\nProf.ª Pati (Hipátia de Alexandria)")
-    
+
 with col2:
     st.info("⚛️ **Física**\nProf. Max (James Clerk Maxwell)")
 
 with col3:
     st.info("🧪 **Química**\nProf.ª Maria (Maria Salomea Skłodowska)")
 
-st.caption("Novas disciplinas (como Biologia) estarão disponíveis em breve.")
+with col4:
+    st.info("🧬 **Biologia**\nProf.ª Rosa (Rosalind Elsie Franklin)")
+
+st.caption("Novas disciplinas estarão disponíveis em breve.")

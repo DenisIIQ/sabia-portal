@@ -1,4 +1,4 @@
-# Versão 1.7 - Portal SABIÁ com Química integrada
+# Versão 1.8 - Portal SABIÁ com Biologia integrada
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
 from streamlit_cookies_manager import EncryptedCookieManager
@@ -118,7 +118,7 @@ with st.sidebar:
         cookies["sb_refresh_token"] = ""
         cookies.save()
 
-        for key in ["mat_loaded_for_user", "fis_loaded_for_user", "qui_loaded_for_user"]:
+        for key in ["mat_loaded_for_user", "fis_loaded_for_user", "qui_loaded_for_user", "bio_loaded_for_user"]:
             if key in st.session_state:
                 del st.session_state[key]
 
@@ -128,13 +128,14 @@ with st.sidebar:
     st.divider()
 
 # ==========================================
-# MENU DE NAVEGAÇÃO (Adição da Química)
+# MENU DE NAVEGAÇÃO (Adição da Biologia)
 # ==========================================
 pg = st.navigation([
     st.Page("views/home.py", title="Início", icon="🏠", default=True),
     st.Page("views/matematica.py", title="Matemática", icon="📐"),
     st.Page("views/fisica.py", title="Física", icon="⚛️"),
-    st.Page("views/quimica.py", title="Química", icon="🧪")
+    st.Page("views/quimica.py", title="Química", icon="🧪"),
+    st.Page("views/biologia.py", title="Biologia", icon="🧬")
 ])
 
 pg.run()
